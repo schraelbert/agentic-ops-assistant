@@ -1,0 +1,23 @@
+[
+  {
+    "asset_id": "WTG-02",
+    "timestamp": "2026-09-18T08:15:00Z",
+    "severity": "high",
+    "code": "GBX_TEMP_HIGH",
+    "message": "Gearbox bearing temperature exceeded warning threshold for 12 minutes."
+  },
+  {
+    "asset_id": "WTG-02",
+    "timestamp": "2026-09-18T07:42:00Z",
+    "severity": "medium",
+    "code": "POWER_CURTAILMENT",
+    "message": "Power output curtailed due to thermal protection logic."
+  },
+  {
+    "asset_id": "WTG-01",
+    "timestamp": "2026-09-18T06:10:00Z",
+    "severity": "low",
+    "code": "YAW_ADJUST",
+    "message": "Yaw correction completed successfully."
+  }
+]

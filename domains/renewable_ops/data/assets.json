@@ -1,0 +1,20 @@
+{
+  "WTG-01": {
+    "name": "Wind Turbine 01",
+    "rated_power_mw": 8.0,
+    "status": "running",
+    "power_mw": 6.4,
+    "wind_speed_ms": 10.8,
+    "availability_pct_24h": 98.7,
+    "temperature_c": 52.1
+  },
+  "WTG-02": {
+    "name": "Wind Turbine 02",
+    "rated_power_mw": 8.0,
+    "status": "degraded",
+    "power_mw": 3.1,
+    "wind_speed_ms": 10.5,
+    "availability_pct_24h": 84.2,
+    "temperature_c": 78.4
+  }
+}

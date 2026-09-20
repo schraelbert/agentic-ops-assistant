@@ -1,0 +1,11 @@
+archive/
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+traces/
+evals/latest_report.json
+
+.DS_Store

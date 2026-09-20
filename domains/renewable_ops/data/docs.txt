@@ -1,0 +1,11 @@
+[DOC-GBX-001] Gearbox thermal response procedure
+If gearbox bearing temperature exceeds 75 C for more than 10 minutes, operators should reduce load and inspect lubrication flow, oil level, and cooling performance. If temperature remains above 80 C after load reduction, stop the turbine and escalate to maintenance.
+
+[DOC-CF-001] Capacity factor note
+Capacity factor over an interval is calculated as energy produced divided by rated power multiplied by interval duration. For a short interval with near-steady power, power divided by rated power is an approximation.
+
+[DOC-OPS-001] Alarm handling guidance
+High-severity alarms require confirmation against current operating data before action. Recommendations should cite the alarm, the relevant operating measurement, and the applicable procedure.
+
+[DOC-SAFE-001] Decision support boundary
+The assistant provides decision support only. Safety-critical actions must be confirmed by an authorised operator using approved procedures and current site conditions.
