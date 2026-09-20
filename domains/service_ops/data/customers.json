@@ -1,0 +1,14 @@
+{
+  "CUST-01": {
+    "customer_id": "CUST-01",
+    "plan": "enterprise",
+    "region": "eu-north",
+    "support_tier": "priority"
+  },
+  "CUST-02": {
+    "customer_id": "CUST-02",
+    "plan": "business",
+    "region": "eu-west",
+    "support_tier": "standard"
+  }
+}

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "urgent_ticket_triage",
+    "question": "TCK-101 is urgent. What should support check first?",
+    "expected_tools": ["get_ticket", "get_service_incidents"],
+    "expected_terms": ["incident", "SYNC-API"],
+    "expected_refs": ["INC-77"],
+    "forbidden_terms": ["TCK-102"]
+  },
+  {
+    "id": "sla_remaining",
+    "question": "How much SLA time remains for TCK-101?",
+    "expected_tools": ["get_ticket", "calculate_sla_remaining"],
+    "expected_terms": ["1.5"],
+    "forbidden_terms": ["12 hours"]
+  },
+  {
+    "id": "service_credit_policy",
+    "question": "What does the policy say about service credits?",
+    "expected_tools": [],
+    "expected_terms": ["review", "contract"],
+    "expected_refs": ["DOC-REFUND-001"],
+    "forbidden_terms": ["guaranteed refund"]
+  }
+]

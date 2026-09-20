@@ -68,7 +68,10 @@ def main():
     parser.add_argument("--output", default="evals/latest_report.json")
     args = parser.parse_args()
 
-    cases = json.loads((Path(__file__).parent / "cases.json").read_text(encoding="utf-8"))
+    eval_dir = Path(__file__).parent
+    domain_cases = eval_dir / f"{args.domain}.json"
+    cases_path = domain_cases if domain_cases.exists() else eval_dir / "cases.json"
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
     agent = AgenticOpsAssistant(args.domain)
     rows = []
 

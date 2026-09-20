@@ -1,0 +1,22 @@
+{
+  "TCK-101": {
+    "ticket_id": "TCK-101",
+    "customer_id": "CUST-01",
+    "service_id": "SYNC-API",
+    "priority": "high",
+    "status": "open",
+    "elapsed_hours": 2.5,
+    "sla_hours": 4.0,
+    "summary": "Repeated 5xx errors during data synchronization."
+  },
+  "TCK-102": {
+    "ticket_id": "TCK-102",
+    "customer_id": "CUST-02",
+    "service_id": "REPORTING",
+    "priority": "medium",
+    "status": "open",
+    "elapsed_hours": 6.0,
+    "sla_hours": 12.0,
+    "summary": "Scheduled report generation is delayed."
+  }
+}

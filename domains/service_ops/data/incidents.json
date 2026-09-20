@@ -1,0 +1,16 @@
+[
+  {
+    "incident_id": "INC-77",
+    "service_id": "SYNC-API",
+    "severity": "major",
+    "status": "investigating",
+    "message": "Elevated 5xx rate on synchronization endpoints."
+  },
+  {
+    "incident_id": "INC-70",
+    "service_id": "REPORTING",
+    "severity": "minor",
+    "status": "monitoring",
+    "message": "Background report queue latency above normal."
+  }
+]

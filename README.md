@@ -1,69 +1,110 @@
 # Agentic Ops Assistant
 
-A compact, production-minded agentic AI project that combines retrieval-augmented generation (RAG), structured tool calling, execution traces, evaluation, APIs, and Docker.
+[![CI](https://github.com/schraelbert/agentic-ops-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/schraelbert/agentic-ops-assistant/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-The repository is intentionally **domain-agnostic at the core**. The included demo domain uses synthetic renewable-energy asset data, but domain prompts, documents, data, and tools live behind a small adapter so additional domains can be added without rewriting the agent loop.
+A compact, production-minded agentic AI project combining retrieval-augmented generation (RAG), structured tool use, deterministic routing, execution traces, evaluation, FastAPI, Docker, and local Ollama.
+
+The core is intentionally domain-agnostic. Domain prompts, documents, synthetic data, routing rules, and tools live behind adapters, so new use cases can be added without rewriting the agent loop.
+
+## Web UI
+
+![Agentic Ops Assistant UI](docs/ui-demo.png)
+
+The web interface lets you:
+- select a domain
+- ask an operational question
+- inspect the answer and tool calls
+- view the full execution trace
 
 ## What this demonstrates
 
 - local LLM orchestration with Ollama;
 - embedding-based retrieval over domain documents;
 - structured tool selection and multi-step tool use;
-- deterministic preflight routing for prerequisite evidence on safety- or reliability-sensitive query classes;
-- separation between the reusable agent core and domain-specific tools/data;
-- grounded answers that distinguish retrieved procedures from live-style tool data;
-- structured JSONL traces plus a `/trace/{trace_id}` inspection endpoint;
-- a small transparent evaluation suite with pass rate, evidence checks, and latency;
-- FastAPI and containerized deployment.
+- deterministic prerequisite routing for query classes where prompt-only compliance is too fragile;
+- authoritative argument binding between dependent tools;
+- separation between reusable agent infrastructure and domain-specific logic;
+- grounded answers that distinguish retrieved policy/procedure from current tool data;
+- JSONL execution traces plus trace-inspection API endpoints;
+- transparent per-domain evaluations with hard gates for required evidence and tools;
+- a lightweight browser UI for interactive demos;
+- FastAPI, Docker Compose, tests, and GitHub Actions CI.
 
-## Included demo domain: Renewable Asset Operations
+## Demo domains
 
-The sample domain uses synthetic wind-turbine data. Example questions include:
+### Renewable Asset Operations
+
+Synthetic wind-turbine operations data and procedures.
+
+Example questions:
 
 - `WTG-02 is underperforming. What should the operator check first?`
 - `What is the approximate current capacity factor of WTG-01?`
 - `What does the procedure say when gearbox bearing temperature stays above 80 C after load reduction?`
 
-The agent can retrieve operating procedures, query synthetic asset state and alarms, and calculate simple metrics before producing a grounded response.
+The agent can retrieve operating procedures, inspect synthetic alarms and asset state, and run deterministic calculations.
+
+### Service Support Operations
+
+A second, non-energy domain demonstrates that the same agent core can support SaaS/customer-service operations.
+
+Example questions:
+
+- `TCK-101 is urgent. What should support check first?`
+- `How much SLA time remains for TCK-101?`
+- `What does the policy say about service credits?`
+
+The agent can retrieve support policy, inspect synthetic tickets and incidents, and calculate SLA remaining time from authoritative ticket values.
 
 ## Architecture
 
 ```text
-Client -> FastAPI /ask
-             |
-             v
-      AgenticOpsAssistant
-       /      |       \
-      v       v        v
-Embedding RAG  Router   Domain tools
-(document facts)  (current facts/actions)
-       \             /
-        v           v
-          Local LLM
-             |
-             v
-     answer + tool calls + trace
+Browser / API client
+        |
+        v
+   FastAPI /ask
+        |
+        v
+ AgenticOpsAssistant
+   /      |       \
+  v       v        v
+RAG   preflight   domain tools
+      routing
+  \       |       /
+   \      v      /
+       Local LLM
+          |
+          v
+ answer + tool calls + trace
 ```
 
 Domain-specific pieces are isolated under `domains/`:
 
 ```text
 agentic-ops-assistant/
-├── app/                     # reusable agent core
+├── app/                     # reusable agent core + web UI
 │   ├── agent.py
 │   ├── domain_registry.py
 │   ├── llm.py
 │   ├── main.py
 │   ├── retrieval.py
-│   └── trace.py
+│   ├── trace.py
+│   └── static/
 ├── domains/
-│   └── renewable_ops/       # example domain adapter
+│   ├── renewable_ops/
+│   │   ├── domain.py
+│   │   ├── routing.py
+│   │   ├── tools.py
+│   │   └── data/
+│   └── service_ops/
 │       ├── domain.py
 │       ├── routing.py
 │       ├── tools.py
 │       └── data/
 ├── evals/
 ├── tests/
+├── .github/workflows/ci.yml
 ├── Dockerfile
 └── docker-compose.yml
 ```
@@ -79,7 +120,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-On the first run, Docker will pull the Ollama image, build the API image, download the configured LLM (default: `qwen2.5:7b`), and cache the embedding model. Later starts reuse the named volumes.
+On first run Docker pulls Ollama, builds the API image, downloads the configured LLM (default: `qwen2.5:7b`), and caches the embedding model. Later starts reuse the named volumes.
 
 Check status:
 
@@ -87,14 +128,10 @@ Check status:
 docker compose ps
 ```
 
-The API is available at `http://localhost:8000`. Ollama is intentionally **not exposed to the host** in the default stack; the API reaches it over the internal Compose network at `http://ollama:11434`.
+Open the interactive UI at:
 
-### 2. Ask a question
-
-```bash
-curl -X POST http://localhost:8000/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"domain":"renewable_ops","question":"WTG-02 is underperforming. What should the operator check first?"}'
+```text
+http://localhost:8000
 ```
 
 Health check:
@@ -103,33 +140,29 @@ Health check:
 curl http://localhost:8000/health
 ```
 
-### 3. Inspect traces
-
-Structured events are written to the host-mounted `traces/` directory:
+### 2. Ask through the API
 
 ```bash
-tail -f traces/traces.jsonl
+curl -X POST http://localhost:8000/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"renewable_ops","question":"WTG-02 is underperforming. What should the operator check first?"}'
 ```
 
-### Model selection
+Second domain:
 
-Set a different Ollama model in `.env`:
-
-```text
-OLLAMA_MODEL=qwen2.5:7b
+```bash
+curl -X POST http://localhost:8000/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"service_ops","question":"TCK-101 is urgent. What should support check first?"}'
 ```
 
-Then restart the stack. The `model-init` service will pull the selected model if it is not already present in the project volume.
-
-### Optional: reuse an Ollama already running on the host
-
-For local development, if Ollama is already exposed on host port `11434`, you can avoid running a second Ollama container:
+### Optional: reuse Ollama already running on the host
 
 ```bash
 docker compose -f docker-compose.external-ollama.yml up --build
 ```
 
-That mode points the API container to `host.docker.internal:11434`. The default `docker-compose.yml` remains the reproducible, self-contained setup intended for the public repository.
+This mode points the API container to `host.docker.internal:11434`. The default `docker-compose.yml` remains the self-contained setup intended for reproducible demos.
 
 ### Stop the stack
 
@@ -145,91 +178,104 @@ docker compose down -v
 
 ## Trace inspection
 
-Every `/ask` response includes a `trace_id`. Inspect the full execution path through the API:
-
-```bash
-curl http://localhost:8000/trace/<trace_id>
-```
-
-The response includes retrieval events, model outputs, and tool calls in order. Raw JSONL traces are also written to `traces/traces.jsonl`.
-
-## Evaluation
-
-Run the transparent evaluation suite inside the API container:
-
-```bash
-docker-compose -f docker-compose.external-ollama.yml exec api python -m evals.run_evals
-```
-
-Or in the fully self-contained stack:
-
-```bash
-docker compose exec api python -m evals.run_evals
-```
-
-The runner writes `evals/latest_report.json` and reports per-case tool usage, key answer terms, expected evidence references, simple unsupported-claim checks, latency, and an overall pass rate. The suite is intentionally small and inspectable rather than pretending to be a complete agent benchmark.
-
-## Reliability choices
-
-- Current operational facts come from tools rather than model memory.
-- Procedures come from retrieved local documents.
-- Domain adapters define their own safety and evidence rules.
-- Deterministic preflight routing guarantees prerequisite evidence for selected query classes instead of relying on prompt compliance alone.
-- Tool calls are deterministic Python functions with explicit inputs.
-- Tool dependencies and selected arguments can be validated against prior authoritative tool results before execution.
-- Planned calculation inputs can be bound directly to fields from authoritative prior tool results.
-- Final-answer validation catches leaked tool-call syntax and asks the model for a clean rewrite.
-- Retrievals, model outputs, and tool calls are logged with trace IDs.
-- The repository uses synthetic data only.
-
-## Adding another domain
-
-A new domain only needs:
-
-1. a system prompt and document path;
-2. a set of tool specifications;
-3. domain data or API adapters;
-4. registration in `app/domain_registry.py`.
-
-For example, the same core can support internal business operations, customer support, asset maintenance, or workflow automation without changing the orchestration loop.
-
-## Roadmap
-
-- add a second non-energy domain to prove portability;
-- add pgvector or Qdrant as an optional vector backend;
-- add tool schemas with Pydantic validation;
-- add role-based or specialist-agent handoffs only where they improve task quality;
-- add OpenTelemetry-compatible traces, latency, and token/cost metrics;
-- add adversarial evaluations for missing data, conflicting evidence, and unsafe requests;
-- add a small web UI for interactive demos.
-
-## Why this project exists
-
-The goal is to demonstrate a reusable engineering pattern for practical agentic systems: retrieve evidence, call deterministic tools, keep traces, evaluate behavior, and make domain assumptions explicit.
-
-It is deliberately small enough to understand end to end, while leaving clear paths toward production concerns such as observability, access control, vector databases, and richer evaluation.
-
-
-## Inspect recent traces
-
-List trace IDs that are actually present in the persisted JSONL trace store:
+Every `/ask` response includes a `trace_id`. List recent traces:
 
 ```bash
 curl 'http://localhost:8000/traces/recent?limit=10'
 ```
 
-Then inspect one execution:
+Inspect one full execution path:
 
 ```bash
 curl http://localhost:8000/trace/<trace_id>
 ```
 
-Trace IDs from containers that ran before the host trace volume was mounted are not recoverable.
+Events include retrieval, deterministic routing, tool execution, model output, and validation where applicable. Raw JSONL traces are persisted under `traces/`.
 
-## Evaluation semantics
+## Evaluation
 
-The eval suite uses both a weighted score and hard gates. A case only passes when required tools, required evidence references, and unsupported-claim checks all pass. This prevents a fluent answer from passing while skipping required operational evidence or deterministic tools.
+The evaluation runner reports required-tool use, key answer terms, evidence references, simple unsupported-claim checks, latency, and an overall score. Required tools, required references, and unsupported-claim checks are hard gates, so a fluent answer cannot pass by skipping prerequisite evidence.
 
-## Deterministic preflight routing
+Renewable domain:
 
-The renewable demo intentionally uses a small rule-based preflight planner for query classes where missing a prerequisite tool would make the answer unreliable. For example, underperformance triage forces a recent-alarm lookup, while current capacity-factor questions force asset status followed by a deterministic calculation using values bound from that status result. Procedure-only questions bypass operational tools and stay grounded in retrieved documentation. The LLM still performs synthesis and may request additional tools, but prerequisite evidence is not left to prompt compliance alone.
+```bash
+docker compose -f docker-compose.external-ollama.yml exec api \
+  python -m evals.run_evals --domain renewable_ops
+```
+
+Service-operations domain:
+
+```bash
+docker compose -f docker-compose.external-ollama.yml exec api \
+  python -m evals.run_evals --domain service_ops --output evals/service_ops_report.json
+```
+
+The suite is deliberately small and inspectable rather than presented as a general agent benchmark.
+
+### Current validated result
+
+On 2026-09-20, the renewable demo suite passed **3/3 cases in three consecutive local runs** with the configured `qwen2.5:7b` model. This is a stability check for the included synthetic scenarios, not a claim of general model accuracy.
+
+## Reliability choices
+
+- Current operational facts come from tools rather than model memory.
+- Procedures and policy come from retrieved local documents.
+- Domain adapters define their own evidence and safety boundaries.
+- Deterministic preflight routing guarantees prerequisite evidence for selected query classes instead of relying only on prompt compliance.
+- Dependent tool inputs can be bound to exact fields from prior authoritative results.
+- Deterministic calculations are performed in Python tools rather than improvised by the LLM.
+- Final-answer validation catches leaked pseudo-tool syntax and requests a clean rewrite.
+- Retrieval, routing, tool calls, validation, and model outputs are logged with trace IDs.
+- The repository uses synthetic data only.
+
+## Why deterministic routing is included
+
+The project deliberately does not treat full LLM autonomy as a virtue by itself. For narrow query classes where skipping prerequisite evidence would make the answer unreliable, a small transparent router executes required tools first.
+
+Examples:
+
+- wind-turbine underperformance -> inspect recent alarms;
+- current capacity factor -> get current asset state -> deterministic calculation;
+- urgent support ticket -> load current ticket -> correlate service incidents;
+- SLA remaining time -> load current ticket -> deterministic calculation;
+- procedure/policy-only question -> no operational tool call.
+
+The LLM still performs retrieval-grounded synthesis and may request additional tools, but prerequisite evidence is not left to prompt compliance alone.
+
+## Adding another domain
+
+A new domain needs:
+
+1. a system prompt and document path;
+2. tool specifications and deterministic functions/adapters;
+3. optional preflight routing rules;
+4. domain data or external API adapters;
+5. registration in `app/domain_registry.py`;
+6. focused tests and evaluation cases.
+
+The two included adapters show the same orchestration loop operating across asset operations and service-support workflows.
+
+## CI
+
+GitHub Actions runs the deterministic unit-test suite on pushes to `main` and on pull requests.
+
+Local test command:
+
+```bash
+pytest -q
+```
+
+The CI suite intentionally avoids starting an LLM. Model-dependent behavior is covered by the explicit evaluation runner so deterministic unit tests remain fast and repeatable.
+
+## Roadmap
+
+- add Pydantic tool schemas and stricter argument validation;
+- add adversarial evaluations for missing data, conflicting evidence, and tool failures;
+- add optional pgvector or Qdrant retrieval backends;
+- add OpenTelemetry-compatible traces plus token and latency metrics;
+- add role/specialist handoffs only where they materially improve task quality;
+- add authentication/access-control examples for external tool adapters.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,0 +1,11 @@
+[DOC-SLA-001] Support SLA policy
+High-priority tickets have a four-hour first-response target. Medium-priority tickets have a twelve-hour first-response target. SLA calculations must use the ticket's recorded elapsed time and target rather than estimates invented by the assistant.
+
+[DOC-INC-001] Incident correlation procedure
+For a high-priority support ticket affecting a named service, support should check whether an active service incident explains the reported symptoms before recommending customer-specific remediation. If a matching major incident exists, reference the incident and avoid asking the customer to repeat disruptive troubleshooting unless the incident procedure requires it.
+
+[DOC-ESC-001] Escalation guidance
+Escalate a high-priority ticket when an active major incident is present, when the SLA target is close to breach, or when the issue requires engineering access. Include the ticket ID, incident ID when applicable, and the observed customer impact.
+
+[DOC-REFUND-001] Service-credit boundary
+The assistant may explain the documented service-credit process, but it must not promise a refund or service credit. Eligibility requires review under the customer's contract and the recorded incident history.
