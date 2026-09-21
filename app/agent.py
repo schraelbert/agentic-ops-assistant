@@ -5,9 +5,11 @@ import re
 from typing import Any
 
 from .domain_registry import get_domain
+from .evidence import normalize_evidence_references, validate_final_answer
 from .llm import OllamaClient
 from .retrieval import EmbeddingRetriever
 from .trace import log_event, new_trace_id
+from .tooling import validate_tool_args
 
 TOOL_CALL_INSTRUCTION = """
 You may request ONE tool call at a time using exactly this JSON shape and no extra text:
@@ -115,6 +117,11 @@ class AgenticOpsAssistant:
             raise ValueError(feedback)
 
         spec = self.tool_specs[normalized["tool"]]
+        validated_args, schema_error = validate_tool_args(spec, normalized["args"])
+        if schema_error:
+            log_event(trace_id, "validation", {"tool": normalized["tool"], "issue": schema_error, "source": source})
+            raise ValueError(schema_error)
+        normalized["args"] = validated_args or {}
         result = spec["fn"](**normalized["args"])
         event = {
             "tool": normalized["tool"],
@@ -146,7 +153,18 @@ class AgenticOpsAssistant:
         log_event(trace_id, "routing", {"plan": plan})
 
         for planned_call in plan:
-            self._run_tool(planned_call, calls, trace_id, source="preflight")
+            event = self._run_tool(planned_call, calls, trace_id, source="preflight")
+            if isinstance(event["result"], dict) and event["result"].get("error"):
+                log_event(
+                    trace_id,
+                    "routing",
+                    {
+                        "stopped_after_tool": event["tool"],
+                        "reason": "authoritative_tool_error",
+                        "error": event["result"]["error"],
+                    },
+                )
+                break
 
         tool_catalog = "\n".join(
             f"- {name}: {spec['description']} args={spec['args']}"
@@ -170,19 +188,42 @@ class AgenticOpsAssistant:
                     "role": "user",
                     "content": (
                         "Deterministic routing already executed the following prerequisite tools. "
-                        "Use these results as authoritative evidence and do not print tool-call syntax:\n"
+                        "Use these results as authoritative evidence and do not print tool-call syntax. "
+                        "If an authoritative tool returned an error or missing data, state that the requested result cannot be determined from current evidence and do not guess. "
+                        "Do not say the prerequisite tool was not executed: it did execute and returned the recorded result; only any dependent calculation/tool was skipped:\n"
                         + json.dumps(evidence)
                     ),
                 }
             )
 
         repair_used = False
+        evidence_repairs = 0
         for step in range(max_steps):
             output = self.llm.chat(messages)
             log_event(trace_id, "model", {"step": step, "output": output})
             call = self._parse_tool_call(output)
 
             if call is None:
+                normalized_output, normalization_changes = normalize_evidence_references(output, calls)
+                if normalization_changes:
+                    log_event(
+                        trace_id,
+                        "validation",
+                        {"step": step, "issue": "reference_normalization", "details": normalization_changes},
+                    )
+                    output = normalized_output
+
+                sanitizer = self.domain.get("answer_sanitizer")
+                if sanitizer is not None:
+                    sanitized_output, sanitizer_changes = sanitizer(question, output, calls)
+                    if sanitizer_changes:
+                        log_event(
+                            trace_id,
+                            "validation",
+                            {"step": step, "issue": "domain_answer_sanitization", "details": sanitizer_changes},
+                        )
+                        output = sanitized_output
+
                 if self._looks_like_leaked_tool_syntax(output) and not repair_used:
                     repair_used = True
                     log_event(trace_id, "validation", {"step": step, "issue": "leaked_tool_syntax"})
@@ -198,11 +239,40 @@ class AgenticOpsAssistant:
                     )
                     continue
 
+                evidence_issues = validate_final_answer(
+                    output,
+                    question=question,
+                    retrieved_texts=[chunk.text for chunk in retrieved],
+                    calls=calls,
+                    evidence_guard=self.domain.get("evidence_guard"),
+                )
+                if evidence_issues and evidence_repairs < 2:
+                    evidence_repairs += 1
+                    log_event(
+                        trace_id,
+                        "validation",
+                        {"step": step, "issue": "evidence_discipline", "details": evidence_issues},
+                    )
+                    messages.append({"role": "assistant", "content": output})
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Rewrite the final answer so every operational claim is supported by the evidence actually retrieved or returned by executed tools. "
+                                "Do not introduce unrelated subsystem checks. Do not cite tools that were not executed. "
+                                "Use canonical references only: [DOC-...], [TOOL:<executed_tool_name>], [ALARM-<observed_code>], or [INC-<observed_id>]. "
+                                "Validation issues: " + "; ".join(evidence_issues)
+                            ),
+                        }
+                    )
+                    continue
+
                 return {
                     "trace_id": trace_id,
                     "domain": self.domain["name"],
                     "answer": output,
                     "tool_calls": calls,
+                    "evidence_issues": evidence_issues,
                 }
 
             feedback = self._dependency_feedback(call, calls) or self._validate_tool_args(call, calls)
@@ -213,12 +283,15 @@ class AgenticOpsAssistant:
                 continue
 
             spec = self.tool_specs[call["tool"]]
-            try:
-                result = spec["fn"](**call["args"])
-            except TypeError as exc:
-                result = {"error": str(exc)}
+            validated_args, schema_error = validate_tool_args(spec, call["args"])
+            if schema_error:
+                log_event(trace_id, "validation", {"step": step, "tool": call["tool"], "issue": schema_error})
+                messages.append({"role": "assistant", "content": output})
+                messages.append({"role": "user", "content": schema_error + ". Correct the tool call; do not guess values."})
+                continue
 
-            event = {"tool": call["tool"], "args": call["args"], "result": result, "source": "llm"}
+            result = spec["fn"](**(validated_args or {}))
+            event = {"tool": call["tool"], "args": validated_args or {}, "result": result, "source": "llm"}
             calls.append(event)
             log_event(trace_id, "tool", event)
             messages.append({"role": "assistant", "content": output})

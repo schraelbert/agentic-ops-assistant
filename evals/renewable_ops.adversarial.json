@@ -1,0 +1,60 @@
+[
+  {
+    "id": "unknown_asset_capacity_factor",
+    "question": "What is the current capacity factor of WTG-99?",
+    "expected_tools": [
+      "get_asset_status"
+    ],
+    "forbidden_tools": [
+      "calculate_capacity_factor"
+    ],
+    "expected_terms": [
+      "WTG-99"
+    ],
+    "expected_any_terms": [
+      "cannot",
+      "unable",
+      "unknown",
+      "not available"
+    ],
+    "forbidden_terms": [
+      "80%",
+      "175%"
+    ]
+  },
+  {
+    "id": "low_severity_alarm_not_gearbox",
+    "question": "WTG-01 is underperforming. What should the operator check first?",
+    "expected_tools": [
+      "get_recent_alarms"
+    ],
+    "expected_terms": [
+      "YAW_ADJUST"
+    ],
+    "forbidden_terms": [
+      "GBX_TEMP_HIGH",
+      "WTG-02",
+      "gearbox",
+      "lubrication flow",
+      "oil level",
+      "GBX-001"
+    ]
+  },
+  {
+    "id": "yaw_alarm_avoids_unrelated_gearbox_procedure",
+    "question": "WTG-01 is underperforming. Based on current evidence, what should be checked first?",
+    "expected_tools": [
+      "get_recent_alarms"
+    ],
+    "expected_terms": [
+      "YAW_ADJUST"
+    ],
+    "forbidden_terms": [
+      "gearbox",
+      "lubrication flow",
+      "oil level",
+      "GBX-001",
+      "GBX_TEMP_HIGH"
+    ]
+  }
+]

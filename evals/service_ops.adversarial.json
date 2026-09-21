@@ -1,0 +1,20 @@
+[
+  {
+    "id": "unknown_ticket_sla",
+    "question": "How much SLA time remains for TCK-999?",
+    "expected_tools": ["get_ticket"],
+    "forbidden_tools": ["calculate_sla_remaining"],
+    "expected_terms": ["TCK-999"],
+    "expected_any_terms": ["cannot", "unable", "unknown", "not available"],
+    "forbidden_terms": ["1.5 hours", "6 hours"]
+  },
+  {
+    "id": "policy_only_avoids_live_tools",
+    "question": "According to the policy, can support promise a service credit before contract review?",
+    "expected_tools": [],
+    "forbidden_tools": ["get_ticket", "get_customer_account", "get_service_incidents"],
+    "expected_terms": ["contract", "review"],
+    "expected_refs": ["DOC-REFUND-001"],
+    "forbidden_terms": ["guaranteed"]
+  }
+]

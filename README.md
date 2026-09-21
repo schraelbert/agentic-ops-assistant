@@ -22,12 +22,15 @@ The web interface lets you:
 - local LLM orchestration with Ollama;
 - embedding-based retrieval over domain documents;
 - structured tool selection and multi-step tool use;
+- Pydantic tool-input schemas with strict validation and normalization;
 - deterministic prerequisite routing for query classes where prompt-only compliance is too fragile;
 - authoritative argument binding between dependent tools;
 - separation between reusable agent infrastructure and domain-specific logic;
 - grounded answers that distinguish retrieved policy/procedure from current tool data;
+- final-answer evidence validation for citation provenance, executed-tool consistency, canonical reference normalization, and domain-specific evidence scope;
 - JSONL execution traces plus trace-inspection API endpoints;
 - transparent per-domain evaluations with hard gates for required evidence and tools;
+- repeatable consistency runs plus adversarial suites for missing data and unsafe tool chains;
 - a lightweight browser UI for interactive demos;
 - FastAPI, Docker Compose, tests, and GitHub Actions CI.
 
@@ -86,6 +89,7 @@ agentic-ops-assistant/
 ├── app/                     # reusable agent core + web UI
 │   ├── agent.py
 │   ├── domain_registry.py
+│   ├── evidence.py
 │   ├── llm.py
 │   ├── main.py
 │   ├── retrieval.py
@@ -194,7 +198,7 @@ Events include retrieval, deterministic routing, tool execution, model output, a
 
 ## Evaluation
 
-The evaluation runner reports required-tool use, key answer terms, evidence references, simple unsupported-claim checks, latency, and an overall score. Required tools, required references, and unsupported-claim checks are hard gates, so a fluent answer cannot pass by skipping prerequisite evidence.
+The evaluation runner reports required-tool use, key answer terms, evidence references, unsupported-claim checks, final-answer evidence-validation issues, latency, and an overall score. Required tools, required references, forbidden evidence, and unresolved evidence-validation issues are hard gates, so a fluent answer cannot pass by skipping prerequisite evidence.
 
 Renewable domain:
 
@@ -212,6 +216,25 @@ docker compose -f docker-compose.external-ollama.yml exec api \
 
 The suite is deliberately small and inspectable rather than presented as a general agent benchmark.
 
+Repeat every standard case three times to measure behavioral consistency:
+
+```bash
+docker compose -f docker-compose.external-ollama.yml exec api \
+  python -m evals.run_evals --domain renewable_ops --repeat 3
+```
+
+Adversarial suites exercise missing identifiers, tool-chain stopping, forbidden tools, unsupported claims, and irrelevant-document contamination:
+
+```bash
+docker compose -f docker-compose.external-ollama.yml exec api \
+  python -m evals.run_evals --domain renewable_ops --suite adversarial \
+  --output evals/renewable_ops_adversarial_report.json
+
+docker compose -f docker-compose.external-ollama.yml exec api \
+  python -m evals.run_evals --domain service_ops --suite adversarial \
+  --output evals/service_ops_adversarial_report.json
+```
+
 ### Current validated result
 
 On 2026-09-20, the renewable demo suite passed **3/3 cases in three consecutive local runs** with the configured `qwen2.5:7b` model. This is a stability check for the included synthetic scenarios, not a claim of general model accuracy.
@@ -223,8 +246,18 @@ On 2026-09-20, the renewable demo suite passed **3/3 cases in three consecutive 
 - Domain adapters define their own evidence and safety boundaries.
 - Deterministic preflight routing guarantees prerequisite evidence for selected query classes instead of relying only on prompt compliance.
 - Dependent tool inputs can be bound to exact fields from prior authoritative results.
+- Pydantic schemas reject extra fields and invalid numeric ranges before a tool executes.
+- If an authoritative prerequisite tool returns an error, dependent preflight calls are stopped rather than guessed.
 - Deterministic calculations are performed in Python tools rather than improvised by the LLM.
 - Final-answer validation catches leaked pseudo-tool syntax and requests a clean rewrite.
+- Deterministic output cleanup removes residual argument fragments and dangling tool-invocation prose before evidence validation.
+- Narrow deterministic answer sanitization removes unsupported subsystem advice when the executed evidence does not support it.
+- Execution-status validation prevents answers from claiming that a prerequisite tool was not executed when the trace shows that it ran and returned an error/missing-data result.
+- Evidence guards distinguish operational IDs from document IDs (for example, `INC-77` versus `[DOC-INC-001]`) to avoid false-positive validation failures.
+- Tool references are first normalized deterministically: executed tools are canonicalized to `[TOOL:<name>]`, malformed payload-style citations are collapsed to the canonical form, and references to unexecuted tools are removed before semantic evidence validation. Placeholder references such as `[ALARM-...]` are rejected.
+- Evidence validation allows only document IDs from retrieved chunks, tool references for tools that actually executed, and alarm/incident IDs observed in tool results.
+- Domain evidence guards reject selected subsystem- or incident-specific claims when current operational evidence does not support them.
+- Document-only answers are prevented from citing operational tools that were not executed, and tool references use one canonical `[TOOL:<name>]` format.
 - Retrieval, routing, tool calls, validation, and model outputs are logged with trace IDs.
 - The repository uses synthetic data only.
 
@@ -240,14 +273,14 @@ Examples:
 - SLA remaining time -> load current ticket -> deterministic calculation;
 - procedure/policy-only question -> no operational tool call.
 
-The LLM still performs retrieval-grounded synthesis and may request additional tools, but prerequisite evidence is not left to prompt compliance alone.
+The LLM still performs retrieval-grounded synthesis and may request additional tools, but prerequisite evidence is not left to prompt compliance alone. Final answers first pass through narrow deterministic citation normalization, then a deterministic evidence check. If unsupported alarm/incident IDs or selected domain-specific claims remain outside current evidence, the model is asked to rewrite the answer against the available evidence.
 
 ## Adding another domain
 
 A new domain needs:
 
 1. a system prompt and document path;
-2. tool specifications and deterministic functions/adapters;
+2. tool specifications, Pydantic input schemas, and deterministic functions/adapters;
 3. optional preflight routing rules;
 4. domain data or external API adapters;
 5. registration in `app/domain_registry.py`;
@@ -265,12 +298,10 @@ Local test command:
 pytest -q
 ```
 
-The CI suite intentionally avoids starting an LLM. Model-dependent behavior is covered by the explicit evaluation runner so deterministic unit tests remain fast and repeatable.
+The CI suite intentionally avoids starting an LLM and installs only the lightweight dependencies needed for deterministic tests. Model-dependent behavior is covered by the explicit evaluation runner so CI remains fast and repeatable.
 
 ## Roadmap
 
-- add Pydantic tool schemas and stricter argument validation;
-- add adversarial evaluations for missing data, conflicting evidence, and tool failures;
 - add optional pgvector or Qdrant retrieval backends;
 - add OpenTelemetry-compatible traces plus token and latency metrics;
 - add role/specialist handoffs only where they materially improve task quality;

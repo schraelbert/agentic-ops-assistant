@@ -43,3 +43,7 @@ def test_service_sla_has_deterministic_chain():
 
 def test_service_policy_only_uses_no_preflight_tools():
     assert plan_required_tools("What does the policy say about service credits?") == []
+
+
+def test_unknown_ticket_returns_explicit_error():
+    assert get_ticket("TCK-999") == {"error": "Unknown ticket_id: TCK-999"}

@@ -2,24 +2,51 @@
   {
     "id": "alarm_triage",
     "question": "WTG-02 is underperforming. What should the operator check first?",
-    "expected_tools": ["get_recent_alarms"],
-    "expected_terms": ["gearbox", "temperature", "operator"],
-    "expected_refs": ["GBX_TEMP_HIGH"],
-    "forbidden_terms": ["WTG-03"]
+    "expected_tools": [
+      "get_recent_alarms"
+    ],
+    "expected_terms": [
+      "gearbox",
+      "temperature",
+      "operator"
+    ],
+    "expected_refs": [
+      "GBX_TEMP_HIGH"
+    ],
+    "forbidden_terms": [
+      "WTG-03"
+    ]
   },
   {
     "id": "capacity_factor",
     "question": "What is the approximate current capacity factor of WTG-01?",
-    "expected_tools": ["get_asset_status", "calculate_capacity_factor"],
-    "expected_terms": ["80"],
-    "forbidden_terms": ["WTG-02"]
+    "expected_tools": [
+      "get_asset_status",
+      "calculate_capacity_factor"
+    ],
+    "expected_terms": [
+      "80"
+    ],
+    "forbidden_terms": [
+      "WTG-02"
+    ]
   },
   {
     "id": "procedure_grounding",
     "question": "What does the procedure say when gearbox bearing temperature stays above 80 C after load reduction?",
     "expected_tools": [],
-    "expected_terms": ["stop", "maintenance"],
-    "expected_refs": ["DOC-GBX-001"],
-    "forbidden_terms": ["ignore the alarm"]
+    "expected_terms": [
+      "stop",
+      "maintenance"
+    ],
+    "expected_refs": [
+      "DOC-GBX-001"
+    ],
+    "forbidden_terms": [
+      "ignore the alarm",
+      "[TOOL:",
+      "get_asset_status",
+      "get_recent_alarms"
+    ]
   }
 ]

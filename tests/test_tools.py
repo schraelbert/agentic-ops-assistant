@@ -25,3 +25,8 @@ def test_capacity_factor_declares_status_dependency():
     assert spec["requires"] == ["get_asset_status"]
     assert spec["arg_bindings"]["power_mw"] == {"tool": "get_asset_status", "field": "power_mw"}
     assert spec["arg_bindings"]["rated_power_mw"] == {"tool": "get_asset_status", "field": "rated_power_mw"}
+
+
+def test_unknown_asset_returns_explicit_error():
+    assert get_asset_status("WTG-99") == {"error": "Unknown asset_id: WTG-99"}
+    assert get_recent_alarms("WTG-99") == {"error": "Unknown asset_id: WTG-99"}
