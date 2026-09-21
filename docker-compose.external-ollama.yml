@@ -24,7 +24,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-    restart: unless-stopped
+    restart: "no"
 
 volumes:
   hf_cache:

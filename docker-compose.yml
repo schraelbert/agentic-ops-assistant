@@ -9,7 +9,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 5s
-    restart: unless-stopped
+    restart: "no"
 
   model-init:
     image: ollama/ollama:latest
@@ -49,7 +49,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-    restart: unless-stopped
+    restart: "no"
 
 volumes:
   ollama_data:

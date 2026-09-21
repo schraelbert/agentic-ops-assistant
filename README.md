@@ -7,17 +7,7 @@ A compact, production-minded agentic AI project combining retrieval-augmented ge
 
 The core is intentionally domain-agnostic. Domain prompts, documents, synthetic data, routing rules, and tools live behind adapters, so new use cases can be added without rewriting the agent loop.
 
-## Web UI
-
-![Agentic Ops Assistant UI](docs/ui-demo.png)
-
-The web interface lets you:
-- select a domain
-- ask an operational question
-- inspect the answer and tool calls
-- view the full execution trace
-
-## What this demonstrates
+## Capabilities
 
 - local-first LLM orchestration with Ollama plus an optional OpenAI-compatible provider interface;
 - embedding-based retrieval over domain documents;
@@ -32,10 +22,10 @@ The web interface lets you:
 - JSONL execution traces plus trace-inspection API endpoints;
 - transparent per-domain evaluations with hard gates for required evidence and tools;
 - repeatable consistency runs plus adversarial suites for missing data and unsafe tool chains;
-- a lightweight browser UI for interactive demos;
+- a lightweight browser UI for interactive use;
 - FastAPI, Docker Compose, tests, and GitHub Actions CI.
 
-## Demo domains
+## Included domains
 
 ### Renewable Asset Operations
 
@@ -61,6 +51,16 @@ Example questions:
 
 The agent can retrieve support policy, inspect synthetic tickets and incidents, and calculate SLA remaining time from authoritative ticket values.
 
+## Web UI
+
+![Agentic Ops Assistant UI](docs/ui.png)
+
+The web interface lets you:
+- select a domain
+- ask an operational question
+- inspect the answer and tool calls
+- view the full execution trace
+
 ## Architecture
 
 ```text
@@ -85,6 +85,8 @@ RAG   preflight   domain tools
           v
  answer + tool calls + trace
 ```
+
+The service-operations adapter can read repository-local JSON or call the included local mock REST service through the same tool contracts. See [Design notes](docs/design.md) for the reasoning behind these boundaries.
 
 Domain-specific pieces are isolated under `domains/`:
 
@@ -188,7 +190,7 @@ HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 \
 
 After the embedding model is cached, return to the normal command above. Model files are downloaded from Hugging Face only; no paid API or account is required.
 
-This mode points the API container to `host.docker.internal:11434`. The default `docker-compose.yml` remains the self-contained setup intended for reproducible demos.
+This mode points the API container to `host.docker.internal:11434`. The default `docker-compose.yml` remains the self-contained setup intended for reproducible local use.
 
 ### Optional: exercise the REST adapter locally
 
@@ -198,7 +200,7 @@ The service-operations domain can switch from repository-local JSON data to a re
 docker-compose -f docker-compose.external-ollama.yml -f docker-compose.rest-adapter.yml up --build
 ```
 
-With this override, `service_ops` obtains tickets and incidents over HTTP from `mock-service`, while the agent core and tool contracts remain unchanged.
+With this override, `service_ops` obtains tickets and incidents over HTTP from `mock-service`, while the agent core and tool contracts remain unchanged. Non-local service endpoints are blocked unless `ALLOW_REMOTE_SERVICE_OPS=1` is set explicitly.
 
 ### Optional: use another OpenAI-compatible local server
 
@@ -210,7 +212,7 @@ export OPENAI_COMPAT_BASE_URL=http://host.docker.internal:1234/v1
 export OPENAI_COMPAT_MODEL=your-local-model
 ```
 
-No hosted API or API key is required by the repository.
+No hosted API or API key is required by the repository. Remote LLM endpoints are blocked unless `ALLOW_REMOTE_LLM=1` is set explicitly.
 
 ### Stop the stack
 
@@ -279,9 +281,17 @@ docker-compose -f docker-compose.external-ollama.yml exec api \
   --output evals/service_ops_adversarial_report.json
 ```
 
-### Current validated result
+### Current validated results
 
-On 2026-09-20, the renewable demo suite passed **3/3 cases in three consecutive local runs** with the configured `qwen2.5:7b` model. This is a stability check for the included synthetic scenarios, not a claim of general model accuracy.
+Latest verified local runs with the configured `qwen2.5:7b` model:
+
+| Suite | Result | Notes |
+| --- | ---: | --- |
+| Renewable operations — standard | **3/3** | all cases passed; mean overall score 1.00 |
+| Service operations — standard | **3/3** | all cases passed |
+| Renewable operations — adversarial | **9/9** | 3 adversarial cases repeated 3 times; pass rate 1.00 |
+
+These are regression checks for the included synthetic scenarios and configuration, not claims of general model accuracy. Model-dependent evaluations are intentionally run locally rather than in CI.
 
 ## Design notes
 
@@ -289,7 +299,7 @@ The engineering decisions behind routing, evidence validation, tool contracts, p
 
 ## Cost and privacy posture
 
-The default and example stacks use local containers, local models, and synthetic data only. No paid model API, hosted vector database, cloud account, telemetry vendor, or external SaaS subscription is required. GitHub Actions runs deterministic unit tests only; it does not start an LLM or call any paid endpoint.
+The default and example stacks use local containers, local models, and synthetic data only. No paid model API, hosted vector database, cloud account, telemetry vendor, or external SaaS subscription is required. Non-local model and service endpoints require explicit opt-in environment flags. GitHub Actions runs deterministic unit tests only; it does not start an LLM, upload artifacts, or call any paid endpoint. The workflow uses a standard `ubuntu-latest` runner and has a five-minute job timeout.
 
 ## Reliability choices
 
@@ -354,10 +364,13 @@ The CI suite intentionally avoids starting an LLM and installs only the lightwei
 
 ## Roadmap
 
-- add optional pgvector or Qdrant retrieval backends;
-- add OpenTelemetry-compatible traces plus token and latency metrics;
-- add role/specialist handoffs only where they materially improve task quality;
-- add authentication/access-control examples for external tool adapters.
+Potential extensions are intentionally kept optional so the default project remains local-first and cost-free:
+
+- pluggable retrieval backends behind the existing retrieval interface;
+- OpenTelemetry-compatible export for the existing local traces;
+- richer latency/token accounting in trace metadata;
+- authentication and access-control examples for external adapters;
+- specialist handoffs only where they materially improve task quality.
 
 ## License
 

@@ -39,4 +39,4 @@ Each request records retrieval, routing, tool calls, model output, and validatio
 
 ## Cost and privacy posture
 
-The default stack is self-contained and uses synthetic data. It does not require a paid API, hosted vector database, cloud account, telemetry vendor, or external SaaS service. The deterministic CI job runs unit tests only and does not invoke an LLM or any paid endpoint.
+The default stack is self-contained and uses synthetic data. It does not require a paid API, hosted vector database, cloud account, telemetry vendor, or external SaaS service. The deterministic CI job runs unit tests only and does not invoke an LLM or any paid endpoint. The local trace format is repository-owned JSONL; no telemetry is exported unless a future adapter is added explicitly.

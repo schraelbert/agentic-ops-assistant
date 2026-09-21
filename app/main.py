@@ -9,7 +9,7 @@ from .agent import AgenticOpsAssistant
 from .domain_registry import DOMAINS
 from .trace import get_trace, list_recent_traces
 
-app = FastAPI(title="Agentic Ops Assistant", version="0.11.2")
+app = FastAPI(title="Agentic Ops Assistant", version="0.11.4")
 _agents: dict[str, AgenticOpsAssistant] = {}
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

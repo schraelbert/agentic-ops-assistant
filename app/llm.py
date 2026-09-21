@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 from typing import Protocol
-
 import requests
+
+from app.network import is_local_endpoint
 
 
 class ChatClient(Protocol):
@@ -19,6 +20,12 @@ class OllamaClient:
     def __init__(self, base_url: str | None = None, model: str | None = None):
         self.base_url = (base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434").rstrip("/")
         self.model = model or os.getenv("OLLAMA_MODEL") or "qwen2.5:7b"
+        allow_remote = os.getenv("ALLOW_REMOTE_LLM", "0").strip().lower() in {"1", "true", "yes"}
+        if not allow_remote and not is_local_endpoint(self.base_url):
+            raise ValueError(
+                "Remote LLM endpoints are disabled by default. "
+                "Set ALLOW_REMOTE_LLM=1 only if you intentionally want to use one."
+            )
 
     def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
         payload = {
@@ -32,12 +39,13 @@ class OllamaClient:
         return r.json()["message"]["content"]
 
 
+
 class OpenAICompatibleClient:
     """Generic OpenAI-compatible HTTP provider.
 
-    The class is intentionally SDK-free and can point at local servers such as
-    LM Studio, vLLM, or another OpenAI-compatible endpoint. No remote service or
-    API key is enabled by default.
+    The class is intentionally SDK-free and defaults to local servers such as
+    LM Studio or vLLM. Remote endpoints require an explicit opt-in so the
+    repository cannot accidentally send requests to a metered model service.
     """
 
     def __init__(
@@ -53,6 +61,12 @@ class OpenAICompatibleClient:
         ).rstrip("/")
         self.model = model or os.getenv("OPENAI_COMPAT_MODEL") or "local-model"
         self.api_key = api_key or os.getenv("OPENAI_COMPAT_API_KEY")
+        allow_remote = os.getenv("ALLOW_REMOTE_LLM", "0").strip().lower() in {"1", "true", "yes"}
+        if not allow_remote and not is_local_endpoint(self.base_url):
+            raise ValueError(
+                "Remote OpenAI-compatible endpoints are disabled by default. "
+                "Set ALLOW_REMOTE_LLM=1 only if you intentionally want to use one."
+            )
 
     def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
         headers = {"Content-Type": "application/json"}
