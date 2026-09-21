@@ -77,6 +77,15 @@ def normalize_evidence_references(answer: str, calls: list[dict[str, Any]]) -> t
 
     text = placeholder_alarm.sub(replace_placeholder_alarm, text)
 
+    # A document-only answer has no executed operational evidence. Remove any
+    # concrete alarm citations the model may have inferred from procedure text.
+    # The semantic statement can remain grounded in the retrieved DOC citation.
+    if not calls:
+        concrete_alarm = re.compile(r"\[ALARM-[A-Za-z0-9_-]+\]", re.IGNORECASE)
+        if concrete_alarm.search(text):
+            changes.append("removed operational alarm reference from document-only answer")
+            text = concrete_alarm.sub("", text)
+
     # Canonicalize malformed bracketed tool references with payload leakage, but only
     # when the referenced tool really executed. Otherwise remove the unsupported cite.
     malformed = re.compile(r"\[TOOL:([A-Za-z0-9_-]+)[^\]]*\]")
@@ -152,11 +161,20 @@ def normalize_evidence_references(answer: str, calls: list[dict[str, Any]]) -> t
         changes.append("removed leaked JSON tool-argument fragment")
         text = json_arg_fragment.sub("", text)
 
-    # Remove dangling prose left after stripped tool syntax, e.g. `using .`.
+    # Remove dangling prose left after stripped citations/tool syntax.
+    # Examples: `using .` or `... following a load reduction as per .`.
     dangling_using = re.compile(r"(?im)^[^\n.!?]*\busing\s*\.[*_ ]*$")
     if dangling_using.search(text):
         changes.append("removed dangling tool-invocation sentence")
         text = dangling_using.sub("", text)
+
+    dangling_reference_phrase = re.compile(
+        r"\s+\b(?:as\s+per|according\s+to|based\s+on|via)\s*\.",
+        re.IGNORECASE,
+    )
+    if dangling_reference_phrase.search(text):
+        changes.append("removed dangling reference phrase")
+        text = dangling_reference_phrase.sub(".", text)
 
     # Remove empty list markers left behind when a sentence was pruned.
     empty_list_marker = re.compile(r"(?m)^[ \t]*(?:[-*]|\d+[.)])[ \t]*$")

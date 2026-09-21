@@ -1,0 +1,23 @@
+services:
+  mock-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock
+    command: ["uvicorn", "examples.mock_service_api:app", "--host", "0.0.0.0", "--port", "8090"]
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  api:
+    depends_on:
+      mock-service:
+        condition: service_healthy
+    environment:
+      SERVICE_OPS_BACKEND: http
+      SERVICE_OPS_BASE_URL: http://mock-service:8090
+      SERVICE_OPS_HTTP_TIMEOUT_S: "5"

@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DATA = Path(__file__).parent / "data"
-TICKETS = json.loads((DATA / "tickets.json").read_text(encoding="utf-8"))
-INCIDENTS = json.loads((DATA / "incidents.json").read_text(encoding="utf-8"))
-CUSTOMERS = json.loads((DATA / "customers.json").read_text(encoding="utf-8"))
+from .backend import customer, incidents, ticket
+
 
 
 class StrictArgs(BaseModel):
@@ -35,20 +31,15 @@ class SlaArgs(StrictArgs):
 
 
 def get_ticket(ticket_id: str) -> Dict[str, Any]:
-    if ticket_id not in TICKETS:
-        return {"error": f"Unknown ticket_id: {ticket_id}"}
-    return TICKETS[ticket_id]
+    return ticket(ticket_id)
 
 
 def get_customer_account(customer_id: str) -> Dict[str, Any]:
-    if customer_id not in CUSTOMERS:
-        return {"error": f"Unknown customer_id: {customer_id}"}
-    return CUSTOMERS[customer_id]
+    return customer(customer_id)
 
 
-def get_service_incidents(service_id: str, limit: int = 5) -> List[Dict[str, Any]]:
-    rows = [row for row in INCIDENTS if row["service_id"] == service_id]
-    return rows[:limit]
+def get_service_incidents(service_id: str, limit: int = 5) -> List[Dict[str, Any]] | Dict[str, Any]:
+    return incidents(service_id, limit)
 
 
 def calculate_sla_remaining(elapsed_hours: float, sla_hours: float) -> Dict[str, float | bool]:

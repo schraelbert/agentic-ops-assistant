@@ -329,3 +329,45 @@ def test_validator_rejects_extended_alarm_placeholder():
         calls=[{"tool": "get_recent_alarms", "result": [{"code": "YAW_ADJUST"}]}],
     )
     assert any("placeholder evidence reference" in issue for issue in issues)
+
+
+def test_normalize_removes_alarm_reference_from_document_only_answer():
+    answer, changes = normalize_evidence_references(
+        "According to [DOC-GBX-001], stop the turbine as per [ALARM-GBX_TEMP_HIGH].",
+        [],
+    )
+    assert "[DOC-GBX-001]" in answer
+    assert "[ALARM-GBX_TEMP_HIGH]" not in answer
+    assert changes
+
+
+def test_document_only_procedure_answer_clean_after_normalization():
+    answer, _ = normalize_evidence_references(
+        "According to [DOC-GBX-001], stop the turbine as per [ALARM-GBX_TEMP_HIGH].",
+        [],
+    )
+    issues = validate_final_answer(
+        answer,
+        question="What does the procedure say?",
+        retrieved_texts=["[DOC-GBX-001] Gearbox thermal response procedure"],
+        calls=[],
+    )
+    assert issues == []
+
+
+def test_normalize_cleans_dangling_as_per_after_document_only_alarm_removal():
+    answer, changes = normalize_evidence_references(
+        "According to [DOC-GBX-001], the turbine should be stopped following a load reduction as per [ALARM-GBX_TEMP_HIGH].",
+        [],
+    )
+    assert answer == "According to [DOC-GBX-001], the turbine should be stopped following a load reduction."
+    assert "as per ." not in answer
+    assert any("dangling reference phrase" in change for change in changes)
+
+
+def test_normalize_does_not_change_valid_as_per_reference():
+    answer, _ = normalize_evidence_references(
+        "Stop the turbine as per [DOC-GBX-001].",
+        [],
+    )
+    assert answer == "Stop the turbine as per [DOC-GBX-001]."

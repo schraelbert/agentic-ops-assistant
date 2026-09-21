@@ -6,7 +6,7 @@ from typing import Any
 
 from .domain_registry import get_domain
 from .evidence import normalize_evidence_references, validate_final_answer
-from .llm import OllamaClient
+from .llm import create_llm_client
 from .retrieval import EmbeddingRetriever
 from .trace import log_event, new_trace_id
 from .tooling import validate_tool_args
@@ -33,7 +33,7 @@ class AgenticOpsAssistant:
         self.domain = get_domain(domain)
         self.tool_specs = self.domain["tool_specs"]
         self.retriever = EmbeddingRetriever(str(self.domain["docs_path"]))
-        self.llm = OllamaClient()
+        self.llm = create_llm_client()
 
     def _parse_tool_call(self, text: str) -> dict[str, Any] | None:
         text = text.strip()
@@ -233,7 +233,7 @@ class AgenticOpsAssistant:
                             "role": "user",
                             "content": (
                                 "Rewrite the final answer only. Remove any JSON, pseudo-tool calls, or tool-call syntax. "
-                                "Keep short evidence references like [TOOL:get_asset_status], [ALARM-...], and [DOC-...]."
+                                "Keep only evidence references supported by this run, such as [TOOL:get_asset_status], a concrete observed alarm code like [ALARM-YAW_ADJUST], and [DOC-...]. For document-only answers, do not cite operational alarms or tools."
                             ),
                         }
                     )
@@ -260,7 +260,7 @@ class AgenticOpsAssistant:
                             "content": (
                                 "Rewrite the final answer so every operational claim is supported by the evidence actually retrieved or returned by executed tools. "
                                 "Do not introduce unrelated subsystem checks. Do not cite tools that were not executed. "
-                                "Use canonical references only: [DOC-...], [TOOL:<executed_tool_name>], [ALARM-<observed_code>], or [INC-<observed_id>]. "
+                                "Use canonical references only: [DOC-...], [TOOL:<executed_tool_name>], [ALARM-<observed_code>], or [INC-<observed_id>]. For document-only answers with no executed operational tools, use document references only. "
                                 "Validation issues: " + "; ".join(evidence_issues)
                             ),
                         }

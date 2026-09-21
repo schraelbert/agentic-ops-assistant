@@ -1,8 +1,8 @@
 .git
 .venv
 __pycache__
-*.py[cod]
+*.pyc
 .pytest_cache
+.env
 traces
-*.zip
-.DS_Store
+evals/*_report.json

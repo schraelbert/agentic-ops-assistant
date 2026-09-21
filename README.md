@@ -3,7 +3,7 @@
 [![CI](https://github.com/schraelbert/agentic-ops-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/schraelbert/agentic-ops-assistant/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A compact, production-minded agentic AI project combining retrieval-augmented generation (RAG), structured tool use, deterministic routing, execution traces, evaluation, FastAPI, Docker, and local Ollama.
+A compact, production-minded agentic AI project combining retrieval-augmented generation (RAG), structured tool use, deterministic routing, execution traces, evaluation, FastAPI, Docker, and pluggable local-first model/integration boundaries.
 
 The core is intentionally domain-agnostic. Domain prompts, documents, synthetic data, routing rules, and tools live behind adapters, so new use cases can be added without rewriting the agent loop.
 
@@ -19,13 +19,14 @@ The web interface lets you:
 
 ## What this demonstrates
 
-- local LLM orchestration with Ollama;
+- local-first LLM orchestration with Ollama plus an optional OpenAI-compatible provider interface;
 - embedding-based retrieval over domain documents;
 - structured tool selection and multi-step tool use;
 - Pydantic tool-input schemas with strict validation and normalization;
 - deterministic prerequisite routing for query classes where prompt-only compliance is too fragile;
 - authoritative argument binding between dependent tools;
 - separation between reusable agent infrastructure and domain-specific logic;
+- an interchangeable local/REST backend adapter for the service-operations domain;
 - grounded answers that distinguish retrieved policy/procedure from current tool data;
 - final-answer evidence validation for citation provenance, executed-tool consistency, canonical reference normalization, and domain-specific evidence scope;
 - JSONL execution traces plus trace-inspection API endpoints;
@@ -76,8 +77,11 @@ RAG   preflight   domain tools
       routing
   \       |       /
    \      v      /
-       Local LLM
-          |
+      ChatClient
+     /         \
+ Ollama    OpenAI-compatible
+ (local)    HTTP endpoint
+      \         /
           v
  answer + tool calls + trace
 ```
@@ -87,6 +91,7 @@ Domain-specific pieces are isolated under `domains/`:
 ```text
 agentic-ops-assistant/
 ├── app/                     # reusable agent core + web UI
+│   ├── adapters/             # reusable HTTP integration boundary
 │   ├── agent.py
 │   ├── domain_registry.py
 │   ├── evidence.py
@@ -106,12 +111,20 @@ agentic-ops-assistant/
 │       ├── routing.py
 │       ├── tools.py
 │       └── data/
+├── examples/                 # local mock REST service
 ├── evals/
 ├── tests/
 ├── .github/workflows/ci.yml
+├── docs/design.md
 ├── Dockerfile
+├── Dockerfile.mock
+├── docker-compose.rest-adapter.yml
 └── docker-compose.yml
 ```
+
+## Docker Compose compatibility
+
+Examples below use the standalone `docker-compose` command because it works with Colima setups that do not have the Docker Compose v2 plugin installed. If your Docker installation provides Compose v2, the equivalent command is `docker compose`. No paid GitHub, cloud, model, vector-database, or telemetry service is required.
 
 ## Quick start
 
@@ -121,7 +134,7 @@ The default setup is fully containerized: the API and Ollama run as separate ser
 
 ```bash
 cp .env.example .env
-docker compose up --build
+docker-compose up --build
 ```
 
 On first run Docker pulls Ollama, builds the API image, downloads the configured LLM (default: `qwen2.5:7b`), and caches the embedding model. Later starts reuse the named volumes.
@@ -129,7 +142,7 @@ On first run Docker pulls Ollama, builds the API image, downloads the configured
 Check status:
 
 ```bash
-docker compose ps
+docker-compose ps
 ```
 
 Open the interactive UI at:
@@ -163,21 +176,52 @@ curl -X POST http://localhost:8000/ask \
 ### Optional: reuse Ollama already running on the host
 
 ```bash
-docker compose -f docker-compose.external-ollama.yml up --build
+docker-compose -f docker-compose.external-ollama.yml up --build
 ```
 
+This developer mode defaults Hugging Face / Transformers to offline mode so an already cached embedding model is reused without network checks. On a fresh machine with an empty `hf_cache` volume, allow one initial cache fill with:
+
+```bash
+HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 \
+  docker-compose -f docker-compose.external-ollama.yml up --build
+```
+
+After the embedding model is cached, return to the normal command above. Model files are downloaded from Hugging Face only; no paid API or account is required.
+
 This mode points the API container to `host.docker.internal:11434`. The default `docker-compose.yml` remains the self-contained setup intended for reproducible demos.
+
+### Optional: exercise the REST adapter locally
+
+The service-operations domain can switch from repository-local JSON data to a real HTTP integration boundary. The included mock service runs locally and requires no account or external network access:
+
+```bash
+docker-compose -f docker-compose.external-ollama.yml -f docker-compose.rest-adapter.yml up --build
+```
+
+With this override, `service_ops` obtains tickets and incidents over HTTP from `mock-service`, while the agent core and tool contracts remain unchanged.
+
+### Optional: use another OpenAI-compatible local server
+
+Ollama remains the default. To exercise the provider boundary with a local OpenAI-compatible server (for example LM Studio or vLLM), set:
+
+```bash
+export LLM_PROVIDER=openai_compatible
+export OPENAI_COMPAT_BASE_URL=http://host.docker.internal:1234/v1
+export OPENAI_COMPAT_MODEL=your-local-model
+```
+
+No hosted API or API key is required by the repository.
 
 ### Stop the stack
 
 ```bash
-docker compose down
+docker-compose down
 ```
 
 To also delete downloaded model/cache volumes:
 
 ```bash
-docker compose down -v
+docker-compose down -v
 ```
 
 ## Trace inspection
@@ -203,14 +247,14 @@ The evaluation runner reports required-tool use, key answer terms, evidence refe
 Renewable domain:
 
 ```bash
-docker compose -f docker-compose.external-ollama.yml exec api \
+docker-compose -f docker-compose.external-ollama.yml exec api \
   python -m evals.run_evals --domain renewable_ops
 ```
 
 Service-operations domain:
 
 ```bash
-docker compose -f docker-compose.external-ollama.yml exec api \
+docker-compose -f docker-compose.external-ollama.yml exec api \
   python -m evals.run_evals --domain service_ops --output evals/service_ops_report.json
 ```
 
@@ -219,18 +263,18 @@ The suite is deliberately small and inspectable rather than presented as a gener
 Repeat every standard case three times to measure behavioral consistency:
 
 ```bash
-docker compose -f docker-compose.external-ollama.yml exec api \
+docker-compose -f docker-compose.external-ollama.yml exec api \
   python -m evals.run_evals --domain renewable_ops --repeat 3
 ```
 
 Adversarial suites exercise missing identifiers, tool-chain stopping, forbidden tools, unsupported claims, and irrelevant-document contamination:
 
 ```bash
-docker compose -f docker-compose.external-ollama.yml exec api \
+docker-compose -f docker-compose.external-ollama.yml exec api \
   python -m evals.run_evals --domain renewable_ops --suite adversarial \
   --output evals/renewable_ops_adversarial_report.json
 
-docker compose -f docker-compose.external-ollama.yml exec api \
+docker-compose -f docker-compose.external-ollama.yml exec api \
   python -m evals.run_evals --domain service_ops --suite adversarial \
   --output evals/service_ops_adversarial_report.json
 ```
@@ -238,6 +282,14 @@ docker compose -f docker-compose.external-ollama.yml exec api \
 ### Current validated result
 
 On 2026-09-20, the renewable demo suite passed **3/3 cases in three consecutive local runs** with the configured `qwen2.5:7b` model. This is a stability check for the included synthetic scenarios, not a claim of general model accuracy.
+
+## Design notes
+
+The engineering decisions behind routing, evidence validation, tool contracts, provider boundaries, and external integrations are documented in [docs/design.md](docs/design.md).
+
+## Cost and privacy posture
+
+The default and example stacks use local containers, local models, and synthetic data only. No paid model API, hosted vector database, cloud account, telemetry vendor, or external SaaS subscription is required. GitHub Actions runs deterministic unit tests only; it does not start an LLM or call any paid endpoint.
 
 ## Reliability choices
 

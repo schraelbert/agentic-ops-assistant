@@ -13,6 +13,7 @@ COPY app ./app
 COPY domains ./domains
 COPY evals ./evals
 COPY tests ./tests
+COPY examples ./examples
 
 RUN mkdir -p /app/traces
 

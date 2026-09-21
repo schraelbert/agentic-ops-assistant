@@ -9,6 +9,8 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
       HF_HOME: /root/.cache/huggingface
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
       TRACE_PATH: /app/traces/traces.jsonl
     extra_hosts:
       - "host.docker.internal:host-gateway"
